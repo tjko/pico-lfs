@@ -22,7 +22,6 @@
 #ifndef _PICO_LFS_H_
 #define _PICO_LFS_H_
 
-#include "pico/mutex.h"
 #include "lfs.h"
 
 #ifdef __cplusplus
@@ -31,18 +30,8 @@ extern "C"
 #endif
 
 
-typedef struct pico_lfs_context {
-	uint8_t *fs_base;
-#ifdef LFS_THREADSAFE
-	recursive_mutex_t mutex;
-#endif
-} pico_lfs_context_t;
-
-extern struct lfs_config pico_lfs_cfg;
-
-
 struct lfs_config* pico_lfs_init(size_t offset, size_t size);
-
+void pico_lfs_destroy(struct lfs_config *cfg);
 
 
 #ifdef __cplusplus
