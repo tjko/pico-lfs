@@ -97,9 +97,20 @@ It is important to have initialized second core and to allow it to be paused by 
 before trying to do any "write" operations on the littlefs.
 
 ```
-void core1_maint()
+void core1_main()
 {
    multicore_lockout_victim_init();
+   ...
+}
+
+void main()
+{
+   ...
+   multicore_launch_core1(core1_main);
+   ...
+
+   /* Don't write to littlefs until after second core is initialized... */
+
    ...
 }
 ```
