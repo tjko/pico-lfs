@@ -84,6 +84,26 @@ After lfs is "mounted" then it can be used as normal via standard littlefs funct
 (see [littlefs documentation](https://github.com/littlefs-project/littlefs))
 
 
+
+### Multicore support
+
+If program using this library is usign _pico_multicore_ library, it should get detected automatically
+(as ```LIB_PICO_MULTICORE``` should be defined during compilation).
+
+NOTE, when _multicore_ support is enabled flash programming and erase functions will always
+make calls to _multicore_lockout_start_blocking()_ and _multicore_lockout_end_blocking()_ as needed.
+
+It is important to have initialized second core and to allow it to be paused by the other cored,
+before trying to do any "write" operations on the littlefs.
+
+```
+void core1_maint()
+{
+   multicore_lockout_victim_init();
+   ...
+}
+```
+
 ## Functions
 
 This library implements I/O functions for littlefs to operate on built-in flash on Pico.
@@ -93,9 +113,8 @@ data structures (application only briefly needs filesystem access, etc).
 
 
 ```
-/* Initialize LFS configuration. This allocates memory for the
-   the configuration. pico_lfs_destroy() can be used to free
-   the configuration if needed.
+/* Initialize LFS configuration.
+   This dynamically allocates memory for the configuration.
 
    Parameters:
 
@@ -104,8 +123,8 @@ data structures (application only briefly needs filesystem access, etc).
 */
 struct lfs_config* pico_lfs_init(size_t offset, size_t size);
 
-/* Release FLS configuration. lfs_unmount() should be called before
-   calling this.
+/* Release LFS configuration (if needed).
+   lfs_unmount() should be called before calling this.
 */
 void pico_lfs_destroy(struct lfs_config *cfg);
 ```
