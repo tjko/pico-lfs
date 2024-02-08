@@ -87,7 +87,7 @@ After lfs is "mounted" then it can be used as normal via standard littlefs funct
 
 ### Multicore support
 
-If program using this library is usign _pico_multicore_ library, it should get detected automatically
+If program using this library is using _pico_multicore_ library, it should get detected automatically
 (as ```LIB_PICO_MULTICORE``` should be defined during compilation).
 
 NOTE, when _multicore_ support is enabled flash programming and erase functions will always
