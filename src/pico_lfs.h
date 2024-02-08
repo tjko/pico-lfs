@@ -30,7 +30,20 @@ extern "C"
 #endif
 
 
+/* Initialize LFS configuration. This allocates memory for the
+   the configuration. pico_lfs_destroy() can be used to free
+   the configuration if needed.
+
+   Parameters:
+
+   offset = offset in flash memory (must be aligned on 4K page size)
+   size = size of the filesystem (must be multiple of 4K page size)
+*/
 struct lfs_config* pico_lfs_init(size_t offset, size_t size);
+
+/* Release FLS configuration. lfs_unmount() should be called before
+   calling this.
+*/
 void pico_lfs_destroy(struct lfs_config *cfg);
 
 

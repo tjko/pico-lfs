@@ -30,6 +30,7 @@
 
 
 struct pico_lfs_context {
+	struct lfs_config cfg;
 	uint32_t base;
 #ifdef LFS_THREADSAFE
 	recursive_mutex_t mutex;
@@ -42,13 +43,12 @@ static int pico_block_device_read(const struct lfs_config *c, lfs_block_t block,
 {
 	struct pico_lfs_context *ctx = (struct pico_lfs_context*)c->context;
 
-	// check if read is valid
-	LFS_ASSERT (off  % c->read_size == 0);
-	LFS_ASSERT (size % c->read_size == 0);
-	LFS_ASSERT (block < c->block_count);
+	/* Sanity check */
+	LFS_ASSERT(block < c->block_count); /* Do not read past end of flash region. */
+	LFS_ASSERT(off + size <= c->block_size); /* Read must be within a block. */
 
-	// read data
-	memcpy (buffer, (void*)XIP_NOCACHE_NOALLOC_BASE + ctx->base + block * c->block_size + off, size);
+	/* Read from flash via the uncached XIP window */
+	memcpy(buffer, (void*)XIP_NOCACHE_NOALLOC_BASE + ctx->base + block * c->block_size + off, size);
 
 	return LFS_ERR_OK;
 }
@@ -58,21 +58,23 @@ static int pico_block_device_prog(const struct lfs_config *c, lfs_block_t block,
 				lfs_off_t off, const void *buffer, lfs_size_t size)
 {
 	struct pico_lfs_context *ctx = (struct pico_lfs_context*)c->context;
+	uint32_t ints;
 
-	// check if write is valid
-	LFS_ASSERT (off  % c->prog_size == 0);
-	LFS_ASSERT (size % c->prog_size == 0);
-	LFS_ASSERT (block < c->block_count);
+	/* Sanity check */
+	LFS_ASSERT(block < c->block_count); /* Do not write past end of flash region. */
+	LFS_ASSERT(off % c->prog_size == 0); /* Flash address must be aligned to flash page */
+	LFS_ASSERT(size % c->prog_size == 0); /* Bytes to program must be multiple of flash page size. */
+	LFS_ASSERT(off + size <= c->block_size); /* Write must be within a block. */
 
-	// program data
+	/* Program flash block */
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_start_blocking ();
+	multicore_lockout_start_blocking();
 #endif
-	uint32_t ints = save_and_disable_interrupts ();
-	flash_range_program (ctx->base + block * c->block_size + off, buffer, size);
-	restore_interrupts (ints);
+	ints = save_and_disable_interrupts();
+	flash_range_program(ctx->base + block * c->block_size + off, buffer, size);
+	restore_interrupts(ints);
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_end_blocking ();
+	multicore_lockout_end_blocking();
 #endif
 
 	return LFS_ERR_OK;
@@ -82,20 +84,28 @@ static int pico_block_device_prog(const struct lfs_config *c, lfs_block_t block,
 static int pico_block_device_erase(const struct lfs_config *c, lfs_block_t block)
 {
 	struct pico_lfs_context *ctx = (struct pico_lfs_context*)c->context;
+	uint32_t ints;
 
-	// check if erase is valid
-	LFS_ASSERT (block < c->block_count);
+	/* Sanity check */
+	LFS_ASSERT(block < c->block_count);
 
+	/* Erase flash block */
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_start_blocking ();
+	multicore_lockout_start_blocking();
 #endif
-	uint32_t ints = save_and_disable_interrupts ();
-	flash_range_erase (ctx->base + block * c->block_size, c->block_size);
-	restore_interrupts (ints);
+	ints = save_and_disable_interrupts();
+	flash_range_erase(ctx->base + block * c->block_size, c->block_size);
+	restore_interrupts(ints);
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_end_blocking ();
+	multicore_lockout_end_blocking();
 #endif
 
+	return LFS_ERR_OK;
+}
+
+
+static int pico_block_device_sync(const struct lfs_config *c)
+{
 	return LFS_ERR_OK;
 }
 
@@ -124,58 +134,59 @@ static int pico_block_device_unlock(const struct lfs_config *c)
 
 struct lfs_config* pico_lfs_init(size_t offset, size_t size)
 {
-	struct lfs_config *cfg;
 	struct pico_lfs_context *ctx;
+	struct lfs_config *c;
 
-	if (size == 0 || offset % FLASH_SECTOR_SIZE != 0
-		|| size % FLASH_SECTOR_SIZE != 0)
+	if (!size)
 		return NULL;
 
-	if (!(cfg = calloc(1, sizeof(struct lfs_config))))
+	/* Offset and size must align with flash block size. */
+	if (offset % FLASH_SECTOR_SIZE != 0 || size % FLASH_SECTOR_SIZE != 0)
 		return NULL;
 
-	if (!(ctx = calloc(1, sizeof(struct pico_lfs_context)))) {
-		free(cfg);
+	if (!(ctx = calloc(1, sizeof(struct pico_lfs_context))))
 		return NULL;
-	}
 
-	cfg->context = ctx;
 	ctx->base = (uint32_t)offset;
-
-	// block device operations
-	cfg->read  = pico_block_device_read;
-	cfg->prog  = pico_block_device_prog;
-	cfg->erase = pico_block_device_erase;
-	cfg->sync  = NULL;
 #ifdef LFS_THREADSAFE
-	LFS_DEBUG("LFS_THREADSAFE enabled");
-	cfg->lock = pico_block_device_lock;
-	cfg->unlock = pico_block_device_unlock;
 	recursive_mutex_init(&ctx->mutex);
+	LFS_DEBUG("LFS_THREADSAFE enabled");
 #endif
 #ifdef LIB_PICO_MULTICORE
 	LFS_DEBUG("LIB_PICO_MULTICORE enabled");
 #endif
-	// block device configuration
-	cfg->read_size = 1;
-	cfg->prog_size = FLASH_PAGE_SIZE;
-        cfg->block_size = FLASH_SECTOR_SIZE;
-        cfg->block_count = size / FLASH_SECTOR_SIZE;
-	cfg->cache_size = FLASH_PAGE_SIZE * 4;
-	cfg->lookahead_size = 32;
-	cfg->block_cycles = 300;
 
-	return cfg;
+	c = &ctx->cfg;
+	c->context = ctx;
+
+	/* Callbacks to handle I/O */
+	c->read  = pico_block_device_read;
+	c->prog  = pico_block_device_prog;
+	c->erase = pico_block_device_erase;
+	c->sync  = pico_block_device_sync;
+#ifdef LFS_THREADSAFE
+	c->lock = pico_block_device_lock;
+	c->unlock = pico_block_device_unlock;
+#endif
+
+	/* Configure lfs settings */
+	c->read_size = 1;
+	c->prog_size = FLASH_PAGE_SIZE;
+        c->block_size = FLASH_SECTOR_SIZE;
+        c->block_count = size / FLASH_SECTOR_SIZE;
+	c->block_cycles = 300;
+	c->cache_size = FLASH_PAGE_SIZE * 4;
+	c->lookahead_size = 32;
+
+	return c;
 }
 
 
-void pico_lfs_destroy(struct lfs_config *cfg)
+void pico_lfs_destroy(struct lfs_config *c)
 {
-	if (!cfg)
+	if (!c)
 		return;
 
-	if (cfg->context)
-		free(cfg->context);
-	memset(cfg, 0, sizeof(struct lfs_config));
-	free(cfg);
+	memset(c, 0, sizeof(struct lfs_config));
+	free(c);
 }
