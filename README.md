@@ -1,9 +1,12 @@
 # pico-lfs
 A light-weight littlefs interface library for Raspberry Pi Pico C SDK.
 
-
 This software is under GPL license, while "littlefs" is subject to its own license.
 
+Some projects using this library:
+* [BrickPico](https://github.com/tjko/brickpico)
+* [FanPico](https://github.com/tjko/fanpico)
+  
 
 ## Adding library in a project
 
