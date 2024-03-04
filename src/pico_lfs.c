@@ -29,14 +29,6 @@
 #include "pico_lfs.h"
 
 
-struct pico_lfs_context {
-	struct lfs_config cfg;
-	uint32_t base;
-#ifdef LFS_THREADSAFE
-	recursive_mutex_t mutex;
-#endif
-};
-
 
 static int pico_block_device_read(const struct lfs_config *c, lfs_block_t block,
 				lfs_off_t off, void *buffer, lfs_size_t size)
@@ -68,13 +60,15 @@ static int pico_block_device_prog(const struct lfs_config *c, lfs_block_t block,
 
 	/* Program flash block */
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_start_blocking();
+	if (ctx->multicore_lockout_enabled)
+		multicore_lockout_start_blocking();
 #endif
 	ints = save_and_disable_interrupts();
 	flash_range_program(ctx->base + block * c->block_size + off, buffer, size);
 	restore_interrupts(ints);
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_end_blocking();
+	if (ctx->multicore_lockout_enabled)
+		multicore_lockout_end_blocking();
 #endif
 
 	return LFS_ERR_OK;
@@ -91,13 +85,15 @@ static int pico_block_device_erase(const struct lfs_config *c, lfs_block_t block
 
 	/* Erase flash block */
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_start_blocking();
+	if (ctx->multicore_lockout_enabled)
+		multicore_lockout_start_blocking();
 #endif
 	ints = save_and_disable_interrupts();
 	flash_range_erase(ctx->base + block * c->block_size, c->block_size);
 	restore_interrupts(ints);
 #ifdef LIB_PICO_MULTICORE
-	multicore_lockout_end_blocking();
+	if (ctx->multicore_lockout_enabled)
+		multicore_lockout_end_blocking();
 #endif
 
 	return LFS_ERR_OK;
@@ -153,6 +149,7 @@ struct lfs_config* pico_lfs_init(size_t offset, size_t size)
 	LFS_DEBUG("LFS_THREADSAFE enabled");
 #endif
 #ifdef LIB_PICO_MULTICORE
+	ctx->multicore_lockout_enabled = true;
 	LFS_DEBUG("LIB_PICO_MULTICORE enabled");
 #endif
 

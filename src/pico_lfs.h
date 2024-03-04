@@ -30,6 +30,18 @@ extern "C"
 #endif
 
 
+struct pico_lfs_context {
+	struct lfs_config cfg;
+	uint32_t base;
+#ifdef LFS_THREADSAFE
+	recursive_mutex_t mutex;
+#endif
+#ifdef LIB_PICO_MULTICORE
+	bool  multicore_lockout_enabled;
+#endif
+};
+
+
 /* Initialize LFS configuration. This allocates memory for the
    the configuration. pico_lfs_destroy() can be used to free
    the configuration if needed.
