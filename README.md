@@ -104,8 +104,8 @@ If program using this library is using _pico_multicore_ library, it should get d
 NOTE, when _multicore_ support is enabled flash programming and erase functions will always
 make calls to _multicore_lockout_start_blocking()_ and _multicore_lockout_end_blocking()_ as needed.
 
-It is important to have initialized second core and to allow it to be paused by the other cored,
-before trying to do any "write" operations on the littlefs.
+It is important to have initialized second core and to allow it to be paused by the other core,
+before trying to do any "write" operations on the filesystem.
 
 ```
 void core1_main()
