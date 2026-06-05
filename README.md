@@ -6,7 +6,7 @@ This software is under GPL license, while "littlefs" is subject to its own licen
 Some projects using this library:
 * [BrickPico](https://github.com/tjko/brickpico)
 * [FanPico](https://github.com/tjko/fanpico)
-  
+
 
 ## Adding library in a project
 
@@ -47,6 +47,12 @@ This example assumes using last 256kb of the flash memory:
 #include "pico_lfs.h"
 
 #define FS_SIZE (256 * 1024)
+#ifdef PICO_CYW43_SUPPORTED
+  #include "pico/btstack_flash_bank.h"
+  #define FLASH_OFFSET (PICO_FLASH_BANK_STORAGE_OFFSET - FS_SIZE)
+#else
+  #define FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FS_SIZE)
+#endif
 
 static struct lfs_config *lfs_cfg;
 static lfs_t lfs;
@@ -60,7 +66,7 @@ int main()
 
   /* Near the beginning of your program initialize LFS */
 
-  lfs_cfg = pico_lfs_init(PICO_FLASH_SIZE_BYTES - FS_SIZE, FS_SIZE);
+  lfs_cfg = pico_lfs_init(FLASH_OFFSET, FS_SIZE);
   if (!lfs_cfg)
     panic("out of memory");
 
