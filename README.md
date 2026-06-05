@@ -6,7 +6,7 @@ This software is under GPL license, while "littlefs" is subject to its own licen
 Some projects using this library:
 * [BrickPico](https://github.com/tjko/brickpico)
 * [FanPico](https://github.com/tjko/fanpico)
-  
+
 
 ## Adding library in a project
 
@@ -42,11 +42,19 @@ target_compile_definitions(myproject PRIVATE
 
 To use this library you must decide location and size for the _littlefs_ filesystem in the flash memory.
 
-This example assumes using last 256kb of the flash memory:
+This example creates a 256 kB filesystem near the end of the flash memory (leaving
+space for the Bluetooth stack's flash "bank" on Pico W...)
 ```
 #include "pico_lfs.h"
 
 #define FS_SIZE (256 * 1024)
+
+#ifdef PICO_CYW43_SUPPORTED
+  #include "pico/btstack_flash_bank.h"
+  #define FLASH_OFFSET (PICO_FLASH_BANK_STORAGE_OFFSET - FS_SIZE)
+#else
+  #define FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FS_SIZE)
+#endif
 
 static struct lfs_config *lfs_cfg;
 static lfs_t lfs;
@@ -60,7 +68,7 @@ int main()
 
   /* Near the beginning of your program initialize LFS */
 
-  lfs_cfg = pico_lfs_init(PICO_FLASH_SIZE_BYTES - FS_SIZE, FS_SIZE);
+  lfs_cfg = pico_lfs_init(FLASH_OFFSET, FS_SIZE);
   if (!lfs_cfg)
     panic("out of memory");
 
@@ -96,8 +104,8 @@ If program using this library is using _pico_multicore_ library, it should get d
 NOTE, when _multicore_ support is enabled flash programming and erase functions will always
 make calls to _multicore_lockout_start_blocking()_ and _multicore_lockout_end_blocking()_ as needed.
 
-It is important to have initialized second core and to allow it to be paused by the other cored,
-before trying to do any "write" operations on the littlefs.
+It is important to have initialized second core and to allow it to be paused by the other core,
+before trying to do any "write" operations on the filesystem.
 
 ```
 void core1_main()
