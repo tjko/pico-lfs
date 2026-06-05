@@ -42,11 +42,13 @@ target_compile_definitions(myproject PRIVATE
 
 To use this library you must decide location and size for the _littlefs_ filesystem in the flash memory.
 
-This example assumes using last 256kb of the flash memory:
+This example creates 256 kB filesystem near the end of the flash memory (leaving
+space for the Bluetooth stack flash "bank" on Pico W...)
 ```
 #include "pico_lfs.h"
 
 #define FS_SIZE (256 * 1024)
+
 #ifdef PICO_CYW43_SUPPORTED
   #include "pico/btstack_flash_bank.h"
   #define FLASH_OFFSET (PICO_FLASH_BANK_STORAGE_OFFSET - FS_SIZE)
